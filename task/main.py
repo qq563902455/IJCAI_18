@@ -21,12 +21,12 @@ allData = pd.concat(datalist)
 
 catFeatureslist = ['item_id', 'item_brand_id', 'item_city_id',
                    'user_id', 'user_gender_id', 'user_occupation_id',
-                   'context_id', 'shop_id',
+                   'context_id', 'shop_id', 
                   ]
 
 catDropList = ['item_id', 'item_brand_id', 'item_city_id',
                'user_id', 'user_gender_id', 'user_occupation_id',
-               'context_id', 'shop_id', 
+               'context_id', 'shop_id',
                'hour'
                ]
 
@@ -79,7 +79,7 @@ def metric(y_true, y_re):
 
 
 model = lgb.LGBMClassifier(
-    random_state=875,
+    random_state=666,
     max_depth=4,
     subsample=0.80,
     n_estimators=1541,
@@ -111,11 +111,11 @@ for i in range(1, len(featureImportancelist)):
     importanceSeries += pd.Series(featureImportancelist[i])
 importanceSeries.index = pretrainX.columns
 
-#scoreRe = rfeBySingleModel(
-#        smodel, step=1, objnum=10, X=pretrainX, y=pretrainY,
-#        valid=(validX, validY), metric=metric)
-#
-#featureUsed = scoreRe[1]
+scoreRe = rfeBySingleModel(
+        smodel, step=1, objnum=10, X=pretrainX, y=pretrainY,
+        valid=(validX, validY), metric=metric)
+
+featureUsed = scoreRe[1]
 
 
 #score_dict = {}
@@ -130,28 +130,28 @@ importanceSeries.index = pretrainX.columns
 
 
 
-#model = lgb.LGBMClassifier(
-#    random_state=666,
-#    max_depth=4,
-#    subsample=0.80,
-#    n_estimators=1541,
-#    colsample_bytree=0.6,
-##    reg_alpha=0.01,
-#    learning_rate=0.01,
-##    reg_lambda=0.01,
-#    # is_unbalance=True,
-#    # scale_pos_weight=1,
-#    min_child_samples=40,
-#    subsample_freq=2
-#)
-#smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
-#                                                  random_state=945,
-#                                                  shuffle=True))
-#
-#smodel.fit(trainX, trainY, metric)
-#
-#out = smodel.predict_proba(test)[:,1]
-#out = pd.DataFrame({'instance_id': outId,
-#                    'predicted_score': out})
-#out.to_csv('submit.txt', sep=' ', index=False)
-#print('end')
+model = lgb.LGBMClassifier(
+    random_state=666,
+    max_depth=4,
+    subsample=0.80,
+    n_estimators=1541,
+    colsample_bytree=0.6,
+#    reg_alpha=0.01,
+    learning_rate=0.01,
+#    reg_lambda=0.01,
+    # is_unbalance=True,
+    # scale_pos_weight=1,
+    min_child_samples=40,
+    subsample_freq=2
+)
+smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
+                                                  random_state=945,
+                                                  shuffle=True))
+
+smodel.fit(trainX, trainY, metric)
+
+out = smodel.predict_proba(test)[:,1]
+out = pd.DataFrame({'instance_id': outId,
+                    'predicted_score': out})
+out.to_csv('submit.txt', sep=' ', index=False)
+print('end')

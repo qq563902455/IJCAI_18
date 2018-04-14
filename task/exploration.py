@@ -152,5 +152,31 @@ plt.figure()
 g = sns.FacetGrid(trainData, col="day")
 g.map(sns.barplot, 'item_cat2_id', 'is_trade')
 
-for i in trainData.item_cat_id.unique():
-    print(trainData[trainData.item_cat_id==i].count())
+
+trainData['item_property_len']=trainData['item_property_list'].apply(lambda x: x.count(';'))
+sns.countplot(trainData['item_property_list'].apply(lambda x: x.count(';')))
+
+plt.figure()
+g = sns.FacetGrid(trainData, col="day")
+g.map(sns.kdeplot, 'item_property_len')
+
+sns.regplot(x="item_property_len", y="is_trade", data=trainData, x_estimator=np.mean)
+
+
+#property_list = []
+#
+#def checkIn(x):
+#    if x not in property_list:
+#        property_list.append(x)
+#        
+#def countUniqueProperty(s):
+#    totalNum = s.count(';')
+#    for i in range(totalNum):
+#        pos = s.index(';')
+#        checkIn(s[:pos])
+#        s = s[pos+1:]
+#    checkIn(s)
+#    return 0
+#
+#trainData['item_property_list'].apply(countUniqueProperty)
+#len(property_list)
