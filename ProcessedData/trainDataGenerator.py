@@ -3,6 +3,7 @@ import pandas as pd
 # import seaborn as sns
 # import matplotlib.pyplot as plt
 import gc
+from tqdm import tqdm
 # %matplotlib inline
 
 testData = pd.read_table(
@@ -99,13 +100,40 @@ def mergeInfo(rawData, datasetlist):
     return rawData
 
 
+def mergeIdRankInfo(dataset, collist):
+    for col in collist:
+        print('processing:\t', col)
+        idlist = list(dataset[col].unique())
+        dataset[col+'_rank'] = 0
+        for i in tqdm(range(len(idlist))):
+            dataset.loc[dataset[col]==idlist[i], col+'_rank'] =\
+                dataset[dataset[col]==idlist[i]].context_timestamp.rank()
+    return dataset
+
+
 collist = ['item_brand_id', 'item_id', 'item_city_id', 'shop_id', 'user_id',
            'user_occupation_id', 'user_gender_id', 'shop_id',
            'context_page_id', 'context_id', 'item_cat_id',
+           
+           #user 的习惯
            ['user_id', 'item_id'], ['user_id', 'shop_id'],
-           ['user_id', 'item_cat_id'], ['user_gender_id', 'item_cat_id'],
-           ['user_occupation_id', 'item_cat_id'], ['shop_id', 'item_cat_id'],
-           ['user_occupation_id', 'item_cat_id']]
+           ['user_id', 'item_brand_id'], ['user_id', 'item_cat_id'], 
+           
+           #性别 的 习惯
+           ['user_gender_id', 'item_cat_id'], ['user_gender_id', 'item_brand_id'],
+           ['user_gender_id', 'shop_id'], ['user_gender_id', 'item_id'], 
+           
+           #城市 的 习惯
+           ['item_city_id', 'item_cat_id'], ['item_city_id', 'item_brand_id'],
+           ['item_city_id', 'item_id'], ['item_city_id', 'shop_id'], 
+           
+           #职业 的 习惯
+           ['user_occupation_id', 'item_cat_id'], ['user_occupation_id', 'shop_id'],
+           ['user_occupation_id', 'item_brand_id'], ['user_occupation_id', 'item_id']
+           
+           ]
+
+#colRanklist = ['user_id', 'item_brand_id', 'item_id', 'shop_id']
 
 for day in range(2, 8):
     info_list = []
@@ -131,7 +159,9 @@ for day in range(2, 8):
                                         rate_col=True, nameAdd='-2_'))
             
     dataset = allData[allData.day == day]
-
-    mergeInfo(dataset, info_list).to_csv(
+    dataset = mergeInfo(dataset, info_list)
+#    dataset = mergeIdRankInfo(dataset, colRanklist)
+    dataset.to_csv(
         './ProcessedData/day'+str(day)+'.csv', index=False)
     gc.collect()
+

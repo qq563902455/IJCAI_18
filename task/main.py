@@ -70,7 +70,7 @@ test = allData[allData.day == 7][trainX.columns]
 del allData
 del pretrain
 del valid
-
+del datalist
 gc.collect()
 
 
@@ -79,10 +79,10 @@ def metric(y_true, y_re):
 
 
 model = lgb.LGBMClassifier(
-    random_state=875,
+    random_state=666,
     max_depth=4,
     subsample=0.80,
-    n_estimators=1541,
+    n_estimators=1500,
     colsample_bytree=0.6,
 #    reg_alpha=0.01,
     learning_rate=0.01,
@@ -94,7 +94,7 @@ model = lgb.LGBMClassifier(
 )
 #model = LogisticRegression()
 #model.fit(pretrainX, pretrainY, eval_set=(validX, validY),
-#          eval_metric='logloss', early_stopping_rounds=100)
+#          eval_metric='logloss', early_stopping_rounds=300)
 smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
                                                   random_state=945,
                                                   shuffle=True))
@@ -130,28 +130,28 @@ importanceSeries.index = pretrainX.columns
 
 
 
-#model = lgb.LGBMClassifier(
-#    random_state=666,
-#    max_depth=4,
-#    subsample=0.80,
-#    n_estimators=1541,
-#    colsample_bytree=0.6,
-##    reg_alpha=0.01,
-#    learning_rate=0.01,
-##    reg_lambda=0.01,
-#    # is_unbalance=True,
-#    # scale_pos_weight=1,
-#    min_child_samples=40,
-#    subsample_freq=2
-#)
-#smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
-#                                                  random_state=945,
-#                                                  shuffle=True))
-#
-#smodel.fit(trainX, trainY, metric)
-#
-#out = smodel.predict_proba(test)[:,1]
-#out = pd.DataFrame({'instance_id': outId,
-#                    'predicted_score': out})
-#out.to_csv('submit.txt', sep=' ', index=False)
-#print('end')
+model = lgb.LGBMClassifier(
+    random_state=666,
+    max_depth=4,
+    subsample=0.80,
+    n_estimators=1500,
+    colsample_bytree=0.6,
+#    reg_alpha=0.01,
+    learning_rate=0.01,
+#    reg_lambda=0.01,
+    # is_unbalance=True,
+    # scale_pos_weight=1,
+    min_child_samples=40,
+    subsample_freq=2
+)
+smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
+                                                  random_state=945,
+                                                  shuffle=True))
+
+smodel.fit(trainX, trainY, metric)
+
+out = smodel.predict_proba(test)[:,1]
+out = pd.DataFrame({'instance_id': outId,
+                    'predicted_score': out})
+out.to_csv('submit.txt', sep=' ', index=False)
+print('end')

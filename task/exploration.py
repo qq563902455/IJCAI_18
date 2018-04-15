@@ -29,6 +29,18 @@ testData.insert(loc=0, column='day', value=-1)
 testData.insert(loc=0, column='hour', value=testData.context_timestamp.dt.hour)
 
 
+trainData['shop_review_num_level'].max()
+trainData['shop_review_num_level'].min()
+out = trainData[['shop_id', 'day', 'shop_review_num_level',
+           'shop_score_service', 'shop_score_delivery',
+           'shop_score_description', 'shop_star_level',
+           'shop_review_positive_rate']].groupby(by=['shop_id', 'day']).mean()
+
+out = trainData[['item_id', 'day', 
+                 'item_price_level', 'item_sales_level',
+                 'item_collected_level', 'item_pv_level']].groupby(by=['item_id', 'day'], as_index=False).mean()
+
+
 minTime = pd.to_datetime('2018-9-17 16:00:00')
 for i in range(8):
     trainData.loc[
