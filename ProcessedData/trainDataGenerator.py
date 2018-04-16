@@ -3,6 +3,7 @@ import pandas as pd
 # import seaborn as sns
 # import matplotlib.pyplot as plt
 import gc
+from tqdm import tqdm
 # %matplotlib inline
 
 testData = pd.read_table(
@@ -99,6 +100,18 @@ def mergeInfo(rawData, datasetlist):
     return rawData
 
 
+def mergeIdRankInfo(dataset, collist):
+    for col in collist:
+        print('processing:\t', col)
+        idlist = list(dataset[col].unique())
+        dataset[col+'_rank'] = 0
+        for i in tqdm(range(len(idlist))):
+            countNum = dataset[dataset[col]==idlist[i]][col].count()
+            dataset.loc[dataset[col]==idlist[i], col+'_rank'] =\
+                dataset[
+                    dataset[col]==idlist[i]].context_timestamp.rank()/countNum
+    return dataset
+
 collist = ['item_brand_id', 'item_id', 'item_city_id', 'shop_id', 'user_id',
            'user_occupation_id', 'user_gender_id', 'shop_id',
            'context_page_id', 'context_id', 'item_cat_id',
@@ -107,7 +120,9 @@ collist = ['item_brand_id', 'item_id', 'item_city_id', 'shop_id', 'user_id',
            ['user_occupation_id', 'item_cat_id'], ['shop_id', 'item_cat_id'],
            ['user_occupation_id', 'item_cat_id']]
 
-for day in range(2, 8):
+colRanklist = ['user_id', 'item_brand_id', 'item_id', 'shop_id']
+
+for day in range(6,7):
     info_list = []
     for col in collist:
         if type(col) == str:
@@ -131,7 +146,14 @@ for day in range(2, 8):
                                         rate_col=True, nameAdd='-2_'))
             
     dataset = allData[allData.day == day]
-
-    mergeInfo(dataset, info_list).to_csv(
-        './ProcessedData/day'+str(day)+'.csv', index=False)
+    dataset = mergeInfo(dataset, info_list)
+    
+    if day == 6:
+        temp_valid = dataset.copy().sample(frac=0.33, random_state=2017)
+        temp_valid = mergeIdRankInfo(temp_valid, colRanklist)
+        temp_valid.to_csv('./ProcessedData/temp_valid.csv', index=False)
+    
+    dataset = mergeIdRankInfo(dataset, colRanklist)
+    dataset.to_csv(
+            './ProcessedData/day'+str(day)+'.csv', index=False)
     gc.collect()

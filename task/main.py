@@ -15,6 +15,10 @@ datalist = []
 for i in range(2, 8):
     datalist.append(pd.read_csv('./ProcessedData/day'+str(i)+'.csv'))
 
+temp_valid = pd.read_csv('./ProcessedData/temp_valid.csv')
+
+
+
 outId = datalist[5].instance_id
 
 allData = pd.concat(datalist)
@@ -35,7 +39,10 @@ allData = allData.drop(
      'item_category_list', 'instance_id',
      'item_property_list', 'predict_category_property'], axis=1)
 
+
 allData = allData.drop(catDropList, axis=1)
+temp_valid = temp_valid[allData.columns]
+
 
 for col in allData.columns:
     if col in catFeatureslist:
@@ -49,8 +56,15 @@ for col in allData:
             if maxval != minval:
                 allData[col] = allData[col].apply(
                     lambda x: (x-minval)/(maxval-minval))
+                temp_valid[col] = temp_valid[col].apply(
+                    lambda x: (x-minval)/(maxval-minval))
             else:
+                temp_valid = temp_valid.drop([col], axis=1)
                 allData = allData.drop([col], axis=1)
+                
+temp_valid = temp_valid.drop(['day'], axis=1)
+temp_validX = temp_valid.drop(['is_trade'], axis=1)
+temp_validY = temp_valid.is_trade
 
 pretrain = allData[allData.day <= 5].drop(['day'], axis=1)
 pretrainX = pretrain.drop(['is_trade'], axis=1)
@@ -79,13 +93,13 @@ def metric(y_true, y_re):
 
 
 model = lgb.LGBMClassifier(
-    random_state=875,
+    random_state=666,
     max_depth=4,
     subsample=0.80,
-    n_estimators=1541,
+    n_estimators=100,
     colsample_bytree=0.6,
 #    reg_alpha=0.01,
-    learning_rate=0.01,
+    learning_rate=0.1,
 #    reg_lambda=0.01,
     # is_unbalance=True,
     # scale_pos_weight=1,
@@ -100,6 +114,8 @@ smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
                                                   shuffle=True))
 smodel.fit(pretrainX, pretrainY, metric)
 print(log_loss(validY, smodel.predict_proba(validX)[:, 1]))
+
+print(log_loss(temp_validY, smodel.predict_proba(temp_validX)[:, 1]))
 #validPre1 = smodel.predict_proba(validX)[:, 1]
 
 
@@ -130,28 +146,28 @@ importanceSeries.index = pretrainX.columns
 
 
 
-#model = lgb.LGBMClassifier(
-#    random_state=666,
-#    max_depth=4,
-#    subsample=0.80,
-#    n_estimators=1541,
-#    colsample_bytree=0.6,
-##    reg_alpha=0.01,
-#    learning_rate=0.01,
-##    reg_lambda=0.01,
-#    # is_unbalance=True,
-#    # scale_pos_weight=1,
-#    min_child_samples=40,
-#    subsample_freq=2
-#)
-#smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
-#                                                  random_state=945,
-#                                                  shuffle=True))
-#
-#smodel.fit(trainX, trainY, metric)
-#
-#out = smodel.predict_proba(test)[:,1]
-#out = pd.DataFrame({'instance_id': outId,
-#                    'predicted_score': out})
-#out.to_csv('submit.txt', sep=' ', index=False)
-#print('end')
+model = lgb.LGBMClassifier(
+    random_state=666,
+    max_depth=4,
+    subsample=0.80,
+    n_estimators=1541,
+    colsample_bytree=0.6,
+#    reg_alpha=0.01,
+    learning_rate=0.01,
+#    reg_lambda=0.01,
+    # is_unbalance=True,
+    # scale_pos_weight=1,
+    min_child_samples=40,
+    subsample_freq=2
+)
+smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
+                                                  random_state=222,
+                                                  shuffle=True))
+
+smodel.fit(trainX, trainY, metric)
+
+out = smodel.predict_proba(test)[:,1]
+out = pd.DataFrame({'instance_id': outId,
+                    'predicted_score': out})
+out.to_csv('submit.txt', sep=' ', index=False)
+print('end')
