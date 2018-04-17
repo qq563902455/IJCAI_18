@@ -152,5 +152,5 @@ plt.figure()
 g = sns.FacetGrid(trainData, col="day")
 g.map(sns.barplot, 'item_cat2_id', 'is_trade')
 
-for i in trainData.item_cat_id.unique():
-    print(trainData[trainData.item_cat_id==i].count())
+#for i in trainData.item_cat_id.unique():
+#    print(trainData[trainData.item_cat_id==i].count())

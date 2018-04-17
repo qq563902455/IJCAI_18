@@ -1,5 +1,5 @@
 import pandas as pd
-# import numpy as np
+import numpy as np
 # import seaborn as sns
 # import matplotlib.pyplot as plt
 import gc
@@ -87,6 +87,38 @@ def getColInfo(col, dataset, rate_col=False, nameAdd=''):
     return table_info
 
 
+def getColMeanInfo(col, dataset, meanCol, rate_col=False, nameAdd=''):
+    name = ''
+    for i in col:
+        name += i+'_'
+    name += nameAdd
+
+    table_info = dataset[col+[meanCol]].groupby(by=col,
+                                              as_index=False).count()
+    
+    table_info = table_info.fillna(0)
+    table_info = table_info.rename(columns={meanCol: name+'mean'})
+
+    gc.collect()
+    return table_info
+
+
+#def getColMeanInfo(col, dataset, meanCol, rate_col=False, nameAdd=''):
+#    name = ''
+#    for i in col:
+#        name += i+'_'
+#    name += nameAdd
+#
+#    table_info = dataset[col+[meanCol]].groupby(by=col,
+#                                              as_index=False).count()
+#    
+#    table_info = table_info.fillna(0)
+#    table_info = table_info.rename(columns={meanCol: name+'mean'})
+#
+#    gc.collect()
+#    return table_info
+
+
 def mergeInfo(rawData, datasetlist):
     for dataset in datasetlist:
         index_cols = []
@@ -99,18 +131,36 @@ def mergeInfo(rawData, datasetlist):
     rawData = rawData.fillna(0)
     return rawData
 
-
 def mergeIdRankInfo(dataset, collist):
     for col in collist:
-        print('processing:\t', col)
-        idlist = list(dataset[col].unique())
-        dataset[col+'_rank'] = 0
-        for i in tqdm(range(len(idlist))):
-            countNum = dataset[dataset[col]==idlist[i]][col].count()
-            dataset.loc[dataset[col]==idlist[i], col+'_rank'] =\
-                dataset[
-                    dataset[col]==idlist[i]].context_timestamp.rank()/countNum
+        if type(col) == str:
+            print('processing:\t', col)
+            idlist = list(dataset[col].unique())
+            dataset[col+'_rank'] = 0
+            for i in tqdm(range(len(idlist))):
+                countNum = dataset[dataset[col]==idlist[i]][col].count()
+                dataset.loc[dataset[col]==idlist[i], col+'_rank'] =\
+                    dataset[
+                        dataset[col]==idlist[i]].context_timestamp.rank()/countNum
+        elif type(col) == list:
+            idlistlist = []
+            name = ''
+            for item in col:
+                idlistlist.append(list(dataset[item].unique()))
+                name += item
+            name += '_rank'
+            dataset[name] = 0
+            for i in tqdm(range(len(idlistlist[0]))):
+                for j in range(len(idlistlist[1])):
+                        boollist = \
+                            np.array(dataset[col[0]]==idlistlist[0][i]) &\
+                            np.array(dataset[col[1]]==idlistlist[1][j])
+                        boollist = list(boollist)    
+                        countNum = dataset[boollist].context_timestamp.count()
+                        dataset.loc[boollist, name] =\
+                            dataset[boollist].context_timestamp.rank()/countNum
     return dataset
+
 
 collist = ['item_brand_id', 'item_id', 'item_city_id', 'shop_id', 'user_id',
            'user_occupation_id', 'user_gender_id', 'shop_id',
@@ -118,11 +168,11 @@ collist = ['item_brand_id', 'item_id', 'item_city_id', 'shop_id', 'user_id',
            ['user_id', 'item_id'], ['user_id', 'shop_id'],
            ['user_id', 'item_cat_id'], ['user_gender_id', 'item_cat_id'],
            ['user_occupation_id', 'item_cat_id'], ['shop_id', 'item_cat_id'],
-           ['user_occupation_id', 'item_cat_id']]
+           ]
 
 colRanklist = ['user_id', 'item_brand_id', 'item_id', 'shop_id']
-
-for day in range(6,7):
+colMeanlist = []
+for day in range(2, 8):
     info_list = []
     for col in collist:
         if type(col) == str:
@@ -137,13 +187,13 @@ for day in range(6,7):
         elif type(col) == list:
             info_list.append(getColInfo(col, allData[allData.day == day-1],
                                         rate_col=True, nameAdd='-1_'))
-    for col in collist:
-        if type(col) == str:
-            info_list.append(getColInfo([col], allData[allData.day == day-2],
-                                        rate_col=True, nameAdd='-2_'))
-        elif type(col) == list:
-            info_list.append(getColInfo(col, allData[allData.day == day-2],
-                                        rate_col=True, nameAdd='-2_'))
+#    for col in collist:
+#        if type(col) == str:
+#            info_list.append(getColInfo([col], allData[allData.day == day-2],
+#                                        rate_col=True, nameAdd='-2_'))
+#        elif type(col) == list:
+#            info_list.append(getColInfo(col, allData[allData.day == day-2],
+#                                        rate_col=True, nameAdd='-2_'))
             
     dataset = allData[allData.day == day]
     dataset = mergeInfo(dataset, info_list)

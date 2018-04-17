@@ -43,10 +43,10 @@ allData = allData.drop(
 allData = allData.drop(catDropList, axis=1)
 temp_valid = temp_valid[allData.columns]
 
-
 for col in allData.columns:
     if col in catFeatureslist:
         allData[col] = pd.Categorical(allData[col])
+        temp_valid[col] = pd.Categorical(temp_valid[col])
 
 for col in allData:
     if col not in catFeatureslist:
@@ -146,28 +146,28 @@ importanceSeries.index = pretrainX.columns
 
 
 
-model = lgb.LGBMClassifier(
-    random_state=666,
-    max_depth=4,
-    subsample=0.80,
-    n_estimators=1541,
-    colsample_bytree=0.6,
-#    reg_alpha=0.01,
-    learning_rate=0.01,
-#    reg_lambda=0.01,
-    # is_unbalance=True,
-    # scale_pos_weight=1,
-    min_child_samples=40,
-    subsample_freq=2
-)
-smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
-                                                  random_state=222,
-                                                  shuffle=True))
-
-smodel.fit(trainX, trainY, metric)
-
-out = smodel.predict_proba(test)[:,1]
-out = pd.DataFrame({'instance_id': outId,
-                    'predicted_score': out})
-out.to_csv('submit.txt', sep=' ', index=False)
-print('end')
+#model = lgb.LGBMClassifier(
+#    random_state=666,
+#    max_depth=4,
+#    subsample=0.80,
+#    n_estimators=1500,
+#    colsample_bytree=0.6,
+##    reg_alpha=0.01,
+#    learning_rate=0.01,
+##    reg_lambda=0.01,
+#    # is_unbalance=True,
+#    # scale_pos_weight=1,
+#    min_child_samples=40,
+#    subsample_freq=2
+#)
+#smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
+#                                                  random_state=222,
+#                                                  shuffle=True))
+#
+#smodel.fit(trainX, trainY, metric)
+#
+#out = smodel.predict_proba(test)[:,1]
+#out = pd.DataFrame({'instance_id': outId,
+#                    'predicted_score': out})
+#out.to_csv('submit.txt', sep=' ', index=False)
+#print('end')
