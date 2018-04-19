@@ -9,7 +9,6 @@ import lightgbm as lgb
 def metric(y_true, y_re):
     return log_loss(y_true, y_re)
 
-
 testData = pd.read_table(
     './rawdata/round1_ijcai_18_test_a_20180301.txt', sep=' ')
 trainData = pd.read_table(

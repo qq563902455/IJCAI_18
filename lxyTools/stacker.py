@@ -11,6 +11,7 @@ import copy as cp;
 from sklearn.model_selection import StratifiedKFold;
 from sklearn.linear_model import LogisticRegression;
 from sklearn.model_selection import cross_val_score;
+import gc
 
 
 class stacker:
@@ -67,6 +68,7 @@ class stacker:
 
                 modelCp=cp.deepcopy(model);
                 modelCp.fit(kTrain_x,kTrain_y);
+                gc.collect()
                 modelList.append(modelCp);
 
                 if self.obj=='binary':
@@ -99,7 +101,7 @@ class stacker:
             kTest_x=self.higherTrain.iloc[kTestIndex];
             kTest_y=Y.iloc[kTestIndex];
             higherModelcp.fit(kTrain_x,kTrain_y);
-
+            gc.collect()
 
             if self.obj=='binary':
                 testPre=higherModelcp.predict_proba(kTest_x)[:,1];

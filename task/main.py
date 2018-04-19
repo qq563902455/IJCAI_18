@@ -2,6 +2,8 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 from lxyTools.singleModelUtils import singleModel
+from lxyTools.stacker import stacker
+from lxyTools.stacker import linearBlending
 from lxyTools.featureSelect import rfeBySingleModel
 from sklearn.metrics import log_loss
 import lightgbm as lgb
@@ -15,9 +17,8 @@ datalist = []
 for i in range(2, 8):
     datalist.append(pd.read_csv('./ProcessedData/day'+str(i)+'.csv'))
 
-temp_valid = pd.read_csv('./ProcessedData/temp_valid.csv')
-
-
+selectedOutId = pd.read_table(
+    './rawdata/round1_ijcai_18_test_b_20180418.txt', sep=' ').instance_id
 
 outId = datalist[5].instance_id
 
@@ -41,12 +42,10 @@ allData = allData.drop(
 
 
 allData = allData.drop(catDropList, axis=1)
-temp_valid = temp_valid[allData.columns]
 
 for col in allData.columns:
     if col in catFeatureslist:
         allData[col] = pd.Categorical(allData[col])
-        temp_valid[col] = pd.Categorical(temp_valid[col])
 
 for col in allData:
     if col not in catFeatureslist:
@@ -56,15 +55,9 @@ for col in allData:
             if maxval != minval:
                 allData[col] = allData[col].apply(
                     lambda x: (x-minval)/(maxval-minval))
-                temp_valid[col] = temp_valid[col].apply(
-                    lambda x: (x-minval)/(maxval-minval))
             else:
-                temp_valid = temp_valid.drop([col], axis=1)
                 allData = allData.drop([col], axis=1)
                 
-temp_valid = temp_valid.drop(['day'], axis=1)
-temp_validX = temp_valid.drop(['is_trade'], axis=1)
-temp_validY = temp_valid.is_trade
 
 pretrain = allData[allData.day <= 5].drop(['day'], axis=1)
 pretrainX = pretrain.drop(['is_trade'], axis=1)
@@ -92,30 +85,42 @@ def metric(y_true, y_re):
     return log_loss(y_true, y_re)
 
 
-model = lgb.LGBMClassifier(
-    random_state=666,
-    max_depth=4,
-    subsample=0.80,
-    n_estimators=100,
-    colsample_bytree=0.6,
-#    reg_alpha=0.01,
-    learning_rate=0.1,
-#    reg_lambda=0.01,
-    # is_unbalance=True,
-    # scale_pos_weight=1,
-    min_child_samples=40,
-    subsample_freq=2,
-)
-#model = LogisticRegression()
-#model.fit(pretrainX, pretrainY, eval_set=(validX, validY),
-#          eval_metric='logloss', early_stopping_rounds=100)
+#model = lgb.LGBMClassifier(
+#    random_state=666,
+#    max_depth=4,
+#    subsample=0.80,
+#    n_estimators=100,
+#    colsample_bytree=0.6,
+##    reg_alpha=0.01,
+#    learning_rate=0.1,
+##    reg_lambda=0.01,
+#    # is_unbalance=True,
+#    # scale_pos_weight=1,
+#    min_child_samples=15,
+#    subsample_freq=2,
+#)
+model = xgb.XGBClassifier(
+            max_depth=3,
+            n_estimators=150,
+            subsample=0.8,
+            colsample_bytree=0.6,
+            min_child_weight=2,
+            reg_alpha=0.3,
+            reg_lambda=0.7,
+            learning_rate=0.1,
+            n_jobs=4,
+        )
+#model = LogisticRegression(C=100)
+#model.fit(pretrainX, pretrainY, eval_set=[(validX, validY)],
+#          eval_metric='logloss', early_stopping_rounds=30)
+#print(gc.collect())
+
 smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
                                                   random_state=945,
                                                   shuffle=True))
 smodel.fit(pretrainX, pretrainY, metric)
 print(log_loss(validY, smodel.predict_proba(validX)[:, 1]))
-
-print(log_loss(temp_validY, smodel.predict_proba(temp_validX)[:, 1]))
+print(gc.collect())
 #validPre1 = smodel.predict_proba(validX)[:, 1]
 
 
@@ -127,11 +132,6 @@ for i in range(1, len(featureImportancelist)):
     importanceSeries += pd.Series(featureImportancelist[i])
 importanceSeries.index = pretrainX.columns
 
-#scoreRe = rfeBySingleModel(
-#        smodel, step=1, objnum=10, X=pretrainX, y=pretrainY,
-#        valid=(validX, validY), metric=metric)
-#
-#featureUsed = scoreRe[1]
 
 
 #score_dict = {}
@@ -143,31 +143,124 @@ importanceSeries.index = pretrainX.columns
 #    score_dict[col] = score
 #    print(score)
 
+modellist=[
+#        lgb.LGBMClassifier(
+#            random_state=666,
+#            max_depth=4,
+#            subsample=0.80,
+#            n_estimators=1592,
+#            colsample_bytree=0.6,
+#            learning_rate=0.01,
+#            min_child_samples=15,
+#            subsample_freq=2),
+        xgb.XGBClassifier(
+            max_depth=3,
+            n_estimators=150,
+            subsample=0.8,
+            colsample_bytree=0.6,
+            min_child_weight=2,
+            reg_alpha=0.3,
+            reg_lambda=0.7,
+            learning_rate=0.1,
+            n_jobs=4,
+        ),
+        LogisticRegression(C=100)
+        ]
+
+stacker_model=stacker(modellist, higherModel=linearBlending([0,0],
+                                                            20,
+                                                            lambda x,y:-metric(x,y),
+                                                            obj='classification'),
+                      kFold=StratifiedKFold(n_splits=5,
+                                            random_state=945,
+                                            shuffle=True),
+                      kFoldHigher=StratifiedKFold(n_splits=5,
+                                                  random_state=777,
+                                                  shuffle=True))
+stacker_model.fit(pretrainX, pretrainY, metric)
+print(log_loss(validY, stacker_model.predict_proba(validX)))
+print(gc.collect())
 
 
+for model in stacker_model.modelHigherList:
+    print(model.paramList)
 
+
+# =============================================================================
+# 单模型
+# =============================================================================
 #model = lgb.LGBMClassifier(
 #    random_state=666,
 #    max_depth=4,
 #    subsample=0.80,
-#    n_estimators=1500,
+#    n_estimators=1592,
 #    colsample_bytree=0.6,
 ##    reg_alpha=0.01,
 #    learning_rate=0.01,
 ##    reg_lambda=0.01,
 #    # is_unbalance=True,
 #    # scale_pos_weight=1,
-#    min_child_samples=40,
+#    min_child_samples=15,
 #    subsample_freq=2
 #)
+#model = LogisticRegression(C=100)
 #smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
-#                                                  random_state=222,
+#                                                  random_state=945,
 #                                                  shuffle=True))
 #
 #smodel.fit(trainX, trainY, metric)
-#
 #out = smodel.predict_proba(test)[:,1]
-#out = pd.DataFrame({'instance_id': outId,
-#                    'predicted_score': out})
-#out.to_csv('submit.txt', sep=' ', index=False)
-#print('end')
+#print(gc.collect())
+    
+    
+# =============================================================================
+#  stacking 融合模型
+# =============================================================================
+modellist=[
+        lgb.LGBMClassifier(
+            random_state=666,
+            max_depth=4,
+            subsample=0.80,
+            n_estimators=1592,
+            colsample_bytree=0.6,
+            learning_rate=0.01,
+            min_child_samples=15,
+            subsample_freq=2),
+#        xgb.XGBClassifier(
+#            max_depth=3,
+#            n_estimators=150,
+#            subsample=0.8,
+#            colsample_bytree=0.6,
+#            min_child_weight=2,
+#            reg_alpha=0.3,
+#            reg_lambda=0.7,
+#            learning_rate=0.1,
+#            n_jobs=4,
+#        ),
+        LogisticRegression(C=100)
+        ]
+
+stacker_model=stacker(modellist, higherModel=linearBlending([0,0],
+                                                            20,
+                                                            lambda x,y:-metric(x,y),
+                                                            obj='classification'),
+                      kFold=StratifiedKFold(n_splits=5,
+                                            random_state=945,
+                                            shuffle=True),
+                      kFoldHigher=StratifiedKFold(n_splits=5,
+                                                  random_state=777,
+                                                  shuffle=True))
+stacker_model.fit(trainX, trainY, metric)    
+out = stacker_model.predict_proba(test)
+print(gc.collect()) 
+   
+
+# =============================================================================
+# 生成最后的结果
+# =============================================================================
+out = pd.DataFrame({'instance_id': outId,
+                    'predicted_score': out})
+out = out.set_index('instance_id')
+
+out.loc[selectedOutId].to_csv('submit.txt', sep=' ')
+print('end')
