@@ -88,21 +88,21 @@ def getColInfo(col, dataset, rate_col=False, nameAdd=''):
     return table_info
 
 
-def getColMeanInfo(col, dataset, meanCol, nameAdd=''):
-    name = ''
-    for i in col:
-        name += i+'_'
-    name += meanCol
-    
-    name += nameAdd
-    table_info = dataset[col+[meanCol]].groupby(by=col,
-                                              as_index=False).mean()
-    
-    table_info = table_info.fillna(0)
-    table_info = table_info.rename(columns={meanCol: name+'_mean'})
-
-    gc.collect()
-    return table_info
+#def getColMeanInfo(col, dataset, meanCol, nameAdd=''):
+#    name = ''
+#    for i in col:
+#        name += i+'_'
+#    name += meanCol
+#    
+#    name += nameAdd
+#    table_info = dataset[col+[meanCol]].groupby(by=col,
+#                                              as_index=False).mean()
+#    
+#    table_info = table_info.fillna(0)
+#    table_info = table_info.rename(columns={meanCol: name+'_mean'})
+#
+#    gc.collect()
+#    return table_info
 
 
 def mergeInfo(rawData, datasetlist):
@@ -123,30 +123,45 @@ def mergeIdRankInfo(dataset, collist):
             print('processing:\t', col)
             idlist = list(dataset[col].unique())
             dataset[col+'_rank'] = 0
+            dataset[col+'_timeperiod'] = 0
             for i in tqdm(range(len(idlist))):
                 countNum = dataset[dataset[col]==idlist[i]][col].count()
                 dataset.loc[dataset[col]==idlist[i], col+'_rank'] =\
                     dataset[
                         dataset[col]==idlist[i]].context_timestamp.rank()/countNum
-        elif type(col) == list:
-            idlistlist = []
-            name = ''
-            for item in col:
-                idlistlist.append(list(dataset[item].unique()))
-                name += item
-            name += '_rank'
-            dataset[name] = 0
-            for i in tqdm(range(len(idlistlist[0]))):
-                for j in range(len(idlistlist[1])):
-                        boollist = \
-                            np.array(dataset[col[0]]==idlistlist[0][i]) &\
-                            np.array(dataset[col[1]]==idlistlist[1][j])
-                        boollist = list(boollist)    
-                        countNum = dataset[boollist].context_timestamp.count()
-                        dataset.loc[boollist, name] =\
-                            dataset[boollist].context_timestamp.rank()/countNum
+                maxtime = dataset[
+                        dataset[col]==idlist[i]].context_timestamp.max()
+                mintime = dataset[
+                        dataset[col]==idlist[i]].context_timestamp.min()
+                dataset.loc[dataset[col]==idlist[i], col+'_timeperiod'] =\
+                    (maxtime - mintime).seconds
     return dataset
 
+
+#lastTime = -1
+#def getLastTimeDiff(x):
+#    global lastTime
+#    if type(lastTime) == int:
+#        lastTime = x
+#        return -1
+#    temp = lastTime
+#    lastTime = x
+#    return (x-temp).seconds
+#
+#
+#def mergeIdTimeDiffInfo(dataset, collist):
+#    global lastTime
+#    dataset = dataset = dataset.sort_values(by='context_timestamp')
+#    for col in collist:
+#        print('processing:\t', col)
+#        idlist = list(dataset[col].unique())
+#        dataset[col+'_timeDiff'] = 0
+#        for i in tqdm(range(len(idlist))):
+#            lastTime = -1
+#            dataset.loc[dataset[col]==idlist[i], col+'_timeDiff'] =\
+#                    dataset[
+#                        dataset[col]==idlist[i]].context_timestamp.apply(getLastTimeDiff)
+#    return dataset
 
 collist = ['item_brand_id', 'item_id', 'item_city_id', 'user_id',
            'user_occupation_id', 'user_gender_id', 'shop_id',
