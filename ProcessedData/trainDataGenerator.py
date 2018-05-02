@@ -3,28 +3,43 @@ import numpy as np
 # import seaborn as sns
 # import matplotlib.pyplot as plt
 import gc
-from tqdm import tqdm
-# %matplotlib inline
+#from tqdm import tqdm
+import random
+
+
+random.seed(10)
+flag = False
+
+
+def rowRandomSelect(x):
+    global flag
+    if not flag:
+        print('a')
+        flag = True
+        return False
+    else:
+        return random.random() > 0.3
+
 
 testData = pd.read_table(
-    './rawdata/round1_ijcai_18_test_a_20180301.txt', sep=' ')
-testData_b = pd.read_table(
-    './rawdata/round1_ijcai_18_test_b_20180418.txt', sep=' ')
-trainData = pd.read_table(
-    './rawdata/round1_ijcai_18_train_20180301.txt', sep=' ')
+    './rawdata/round2_ijcai_18_test_a_20180425.txt', sep=' ')
 
-testData = pd.concat([testData, testData_b])
+
+trainData = pd.read_table(
+    './rawdata/round2_train.txt', sep=' ', skiprows=rowRandomSelect)
 
 
 allData = trainData.append(testData)
 del testData
 del trainData
+gc.collect()
 
 allData['context_timestamp'] = pd.to_datetime(
     allData['context_timestamp'], unit='s')
 
+allData.context_timestamp += pd.to_timedelta('8:00:00')
 
-allData.insert(loc=0, column='day', value=-1)
+allData.insert(loc=0, column='day', value=allData.context_timestamp.dt.day)
 allData.insert(loc=0, column='hour', value=allData.context_timestamp.dt.hour)
 
 
@@ -42,20 +57,15 @@ def getStringVal(s, num):
 
 
 allData.insert(loc=0, column='item_cat_id',
-               value=allData['item_category_list'].apply(lambda x: getStringVal(x, 2)))
+               value=allData['item_category_list'].apply(
+                lambda x: getStringVal(x, 2)))
 allData.insert(loc=0, column='item_cat_len',
-               value=allData['item_category_list'].apply(lambda x: x.count(';')))
+               value=allData['item_category_list'].apply(
+                lambda x: x.count(';')))
 
+allData.insert(loc=0, column='isTestTime', value=0)
+allData.loc[allData.hour >= 12, 'isTestTime'] = 1
 
-minTime = pd.to_datetime('2018-9-17 16:00:00')
-for i in range(8):
-    allData.loc[
-        allData.context_timestamp >= minTime+pd.to_timedelta(str(i)+' days'),
-        'day'] += 1
-
-
-
-    
 
 def getColInfo(col, dataset, rate_col=False, nameAdd=''):
     name = ''
@@ -63,11 +73,13 @@ def getColInfo(col, dataset, rate_col=False, nameAdd=''):
         name += i+'_'
     name += nameAdd
 
-    table_info = dataset[col+['day']].groupby(by=col,
-                                              as_index=False).count()
+    table_info = dataset[col+['day']].groupby(
+            by=col, as_index=False).count()
+
     if not rate_col:
         table_info = table_info.fillna(0)
         table_info = table_info.rename(columns={'day': name+'counts'})
+        table_info[name+'counts'] /= dataset.shape[0]
     else:
         table_1_info = dataset[dataset['is_trade'] == 1][
             col+['day']].groupby(by=col, as_index=False).count()
@@ -88,21 +100,21 @@ def getColInfo(col, dataset, rate_col=False, nameAdd=''):
     return table_info
 
 
-#def getColMeanInfo(col, dataset, meanCol, nameAdd=''):
-#    name = ''
-#    for i in col:
-#        name += i+'_'
-#    name += meanCol
-#    
-#    name += nameAdd
-#    table_info = dataset[col+[meanCol]].groupby(by=col,
-#                                              as_index=False).mean()
-#    
-#    table_info = table_info.fillna(0)
-#    table_info = table_info.rename(columns={meanCol: name+'_mean'})
-#
-#    gc.collect()
-#    return table_info
+def getColMeanInfo(col, dataset, meanCol, nameAdd=''):
+    name = ''
+    for i in col:
+        name += i+'_'
+    name += meanCol
+
+    name += nameAdd
+    table_info = dataset[col+[meanCol]].groupby(by=col,
+                                              as_index=False).mean()
+
+    table_info = table_info.fillna(0)
+    table_info = table_info.rename(columns={meanCol: name+'_mean'})
+
+    gc.collect()
+    return table_info
 
 
 def mergeInfo(rawData, datasetlist):
@@ -117,24 +129,60 @@ def mergeInfo(rawData, datasetlist):
     rawData = rawData.fillna(0)
     return rawData
 
+
+
+
+
+index = 0
+lastId = -100
+def getRankInfo(row, col):
+    global index
+    global lastId
+    if row[col] != lastId:
+        index=0
+    index += 1
+    lastId = row[col]
+    return index
+
+lastId = -100
+lastTime = -1
+def getDiffTimeInfo(row, col):
+    global lastTime
+    global lastId
+    if row[col] != lastId:
+        lastTime = row['context_timestamp']
+        lastId = row[col]
+        return 0
+    re = row['context_timestamp'] - lastTime
+    lastId = row[col]
+    lastTime = row['context_timestamp']
+    return re.seconds
+
 def mergeIdRankInfo(dataset, collist):
+    global index
+    global lastId
+    global lastTime
     for col in collist:
         if type(col) == str:
             print('processing:\t', col)
-            idlist = list(dataset[col].unique())
-            dataset[col+'_rank'] = 0
-            dataset[col+'_timeperiod'] = 0
-            for i in tqdm(range(len(idlist))):
-                countNum = dataset[dataset[col]==idlist[i]][col].count()
-                dataset.loc[dataset[col]==idlist[i], col+'_rank'] =\
-                    dataset[
-                        dataset[col]==idlist[i]].context_timestamp.rank()/countNum
-                maxtime = dataset[
-                        dataset[col]==idlist[i]].context_timestamp.max()
-                mintime = dataset[
-                        dataset[col]==idlist[i]].context_timestamp.min()
-                dataset.loc[dataset[col]==idlist[i], col+'_timeperiod'] =\
-                    (maxtime - mintime).seconds
+            dataset = dataset.sort_values(by=[col, 'context_timestamp'])
+            index = 0
+            lastId = -100
+            lastTime = -1
+            dataset[col+'_rank'] = dataset.apply(
+                    lambda x: getRankInfo(x, col), axis=1)
+            
+            dataset[col+'_rank'] = dataset[col+'_rank']/dataset[col+'_counts']
+            
+            
+            index = 0
+            lastId = -100
+            lastTime = -1
+            dataset[col+'_difftime'] = dataset.apply(
+                    lambda x: getDiffTimeInfo(x, col), axis=1)
+            
+            gc.collect()
+            
     return dataset
 
 
@@ -174,66 +222,49 @@ collist = ['item_brand_id', 'item_id', 'item_city_id', 'user_id',
 colRanklist = ['user_id', 'item_brand_id', 'item_id', 'shop_id']
 
 
-#colMeandict = {
-#        'user_id': ['shop_score_description', 'shop_score_delivery',
-#                    'shop_score_service', 'shop_review_positive_rate',
-#                    'shop_star_level', 'shop_review_num_level',
-#                    'item_sales_level', 'item_price_level',
-#                    'item_collected_level', 'item_pv_level']
-#        }
 
-for day in range(2, 8):
+
+
+for day in range(6, 8):
+    print(day)
     info_list = []
     for col in collist:
         if type(col) == str:
             info_list.append(getColInfo([col], allData[allData.day == day]))
         elif type(col) == list:
             info_list.append(getColInfo(col, allData[allData.day == day]))
-            
-    for col in collist:
-        if type(col) == str:
-            info_list.append(getColInfo([col], allData[allData.day == day-1],
-                                        rate_col=True, nameAdd='-1_'))
-        elif type(col) == list:
-            info_list.append(getColInfo(col, allData[allData.day == day-1],
-                                        rate_col=True, nameAdd='-1_'))
-            
-    for col in collist:
-        if type(col) == str:
-            info_list.append(getColInfo([col], allData[allData.day == day-2],
-                                        rate_col=True, nameAdd='-2_'))
-        elif type(col) == list:
-            info_list.append(getColInfo(col, allData[allData.day == day-2],
-                                        rate_col=True, nameAdd='-2_'))
-#    for key in  colMeandict:
-#          for col in colMeandict[key]:
-#              print(col)
-#              info_list.append(getColMeanInfo([key],
-#                               allData[np.array(allData.day < day)&
-#                                       np.array(allData.day >= day-2)&
-#                                       np.array(allData.is_trade==1)],
-#                               col))
-#    for key in  colMeandict:
-#          for col in colMeandict[key]:
-#              print(col)
-#              info_list.append(getColMeanInfo([key],
-#                               pd.concat([
-#                                sampleData[np.array(sampleData.day == day)],
-#                                allData[np.array(allData.day < day)&
-#                                        np.array(allData.day >= day-2)]
-#                                ]),
-#                               col))
-          
+
+#    for col in collist:
+#        if type(col) == str:
+#            info_list.append(getColInfo([col], allData[allData.day == day-1],
+#                                        rate_col=True, nameAdd='-1_'))
+#        elif type(col) == list:
+#            info_list.append(getColInfo(col, allData[allData.day == day-1],
+#                                        rate_col=True, nameAdd='-1_'))
+#
+#    for col in collist:
+#        if type(col) == str:
+#            info_list.append(getColInfo([col], allData[allData.day == day-2],
+#                                        rate_col=True, nameAdd='-2_'))
+#        elif type(col) == list:
+#            info_list.append(getColInfo(col, allData[allData.day == day-2],
+#                                        rate_col=True, nameAdd='-2_'))
+
+
+
     dataset = allData[allData.day == day]
     dataset = mergeInfo(dataset, info_list)
-        
+    
+    del info_list
+    gc.collect()
+    
     dataset = mergeIdRankInfo(dataset, colRanklist)
     dataset.to_csv(
             './ProcessedData/day'+str(day)+'.csv', index=False)
     gc.collect()
-    
-    
-    
+
+
+
 
 
 
@@ -241,15 +272,15 @@ for day in range(2, 8):
 # 这个模块的作用是把上面的那些day.csv转换成模型训练用的csv
 # =============================================================================
 datalist = []
-for i in range(2, 8):
+for i in range(6, 8):
     datalist.append(pd.read_csv('./ProcessedData/day'+str(i)+'.csv'))
 
 selectedOutId = pd.read_table(
-    './rawdata/round1_ijcai_18_test_b_20180418.txt', sep=' ').instance_id
+    './rawdata/round2_ijcai_18_test_a_20180425.txt', sep=' ').instance_id
 
-outId = datalist[5].instance_id
-
+outId = datalist[0].instance_id
 allData = pd.concat(datalist)
+
 
 catFeatureslist = ['item_id', 'item_brand_id', 'item_city_id',
                    'user_id', 'user_gender_id', 'user_occupation_id',
@@ -258,7 +289,7 @@ catFeatureslist = ['item_id', 'item_brand_id', 'item_city_id',
 
 catDropList = ['item_id', 'item_brand_id', 'item_city_id',
                'user_id', 'user_gender_id', 'user_occupation_id',
-               'context_id', 'shop_id', 
+               'context_id', 'shop_id',
                'hour'
                ]
 
@@ -284,20 +315,19 @@ for col in allData:
                     lambda x: (x-minval)/(maxval-minval))
             else:
                 allData = allData.drop([col], axis=1)
-                
-
-pretrain = allData[allData.day <= 5].drop(['day'], axis=1)
-
-valid = allData[allData.day == 6].drop(['day'], axis=1)
 
 
-train = allData[allData.day <= 6]
-train = train[train.day > 2].drop(['day'], axis=1)
-
-test = allData[allData.day == 7][train.drop(['is_trade'], axis=1).columns]
 
 
-pretrain.to_csv('./ProcessedData/pretrain.csv', index=False)
+
+
+train = allData[allData.day==6].drop(['isTestTime', 'day'], axis=1)
+valid = allData[np.array(allData.isTestTime == 0)&
+                np.array(allData.day==7)].drop(['isTestTime', 'day'], axis=1)
+test = allData[np.array(allData.isTestTime == 1)&
+               np.array(allData.day==7)].drop(['is_trade', 'isTestTime', 'day'], axis=1)
+
+#pretrain.to_csv('./ProcessedData/pretrain.csv', index=False)
 valid.to_csv('./ProcessedData/valid.csv', index=False)
 train.to_csv('./ProcessedData/train.csv', index=False)
 test.to_csv('./ProcessedData/test.csv', index=False)
