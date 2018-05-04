@@ -26,6 +26,7 @@ trainY = train.is_trade
 validX = valid.drop(['is_trade'], axis=1)
 validY = valid.is_trade
 
+
 #
 #droplist = []
 #for col in trainX.columns:
@@ -44,9 +45,9 @@ model = lgb.LGBMClassifier(
     random_state=666,
     max_depth=6,
     subsample=0.8,
-    n_estimators=1700,
-    colsample_bytree=0.8,
-    reg_alpha=0,
+    n_estimators=2000,
+    colsample_bytree=0.6,
+    reg_alpha=0.3,
     learning_rate=0.01,
     reg_lambda=0.3,
     # is_unbalance=True,
@@ -73,7 +74,7 @@ model = lgb.LGBMClassifier(
 smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
                                                   random_state=945,
                                                   shuffle=True))
-smodel.fit(validX, validY, metric, addX=trainX, addY=trainY)
+smodel.fit(validX, validY, metric)
 print(gc.collect())
 
 featureImportancelist = []
