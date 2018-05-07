@@ -1,71 +1,59 @@
 import pandas as pd
+import numpy as np
+
+trainData = pd.read_table(
+    './rawdata/round2_train.txt', sep=' ', nrows=100000)
 
 
-newData = pd.read_csv('./ProcessedData/day7.csv')
-oldData = pd.read_csv('./IJCAI_ROUND2_TempData/day7.csv')
+trainData['context_timestamp'] = pd.to_datetime(
+    trainData['context_timestamp'], unit='s')
 
-newData.isTesttime.unique()
-newData = newData[newData.isTestTime == 0]
-
-
-
-newData = newData.sort_values(by=['instance_id'])
-oldData = oldData.sort_values(by=['instance_id'])
-
-newData.head()
-
-
-newData.head()
-oldData.head()
-for col in newData.columns:
-    try:
-        print(col,'\t',newData[col].std(),'\t',oldData[col].std())
-        print(col,'\t',newData[col].std(),'\t',oldData[col].std())
-        print()
-    except(Exception):
-        print(col)
-
-
-newData.user_id_rank.head()
-oldData.user_id_rank.head()
-
-
-newData.user_id_rank.max()
-newData.user_id_rank.min()
-newData.user_id_rank.mean()
+trainData = trainData.sort_values(by=['context_timestamp'])
 
 
 
 
+def mergeIdRankInfo(dataset, collist):
+    for col in collist:
+        if type(col) == str:
+            print('processing:\t', col)
+            dataset = dataset.sort_values(by=['context_timestamp'])
+            tempG = dataset.groupby(by=[col], as_index=False)
+            dataset[col+'_rank'] = tempG.cumcount()
+            tempTimeperiod = \
+                pd.DataFrame(
+                    (tempG['context_timestamp'].last()['context_timestamp']-\
+                     tempG['context_timestamp'].first()['context_timestamp']
+                    ).dt.seconds)
+                
+            tempTimeperiod[col] = tempG['context_timestamp'].last()[col]
+            tempTimeperiod = tempTimeperiod.rename(
+                    {'context_timestamp': col+'_timeperiod'}, axis=1)
+            
+            dataset = pd.merge(dataset, tempTimeperiod, on=[col])
+            
+    return dataset
 
 
+mergeIdRankInfo(trainData, ['user_id'])[['user_id', 'context_timestamp', 'user_id_rank','user_id_timeperiod']].head(50)
+
+mergeIdRankInfo(trainData, ['user_id']).columns
+
+trainData[['user_id','context_timestamp']].head(20)
+
+temp = trainData.groupby(by=['user_id'], as_index=False)
+temp.cumcount().head(50)
+
+temp['context_timestamp'].first()['user_id']
+temp['context_timestamp'].last()['context_timestamp']
+temp['context_timestamp']
 
 
-newData.head()
-oldData.user_id_rank.max()
-oldData.user_id_rank.min()
-oldData.user_id_rank.mean()
+(temp['context_timestamp'].last()['context_timestamp'] - \
+    temp['context_timestamp'].first()['context_timestamp']).dt.seconds
 
-
-
-newData.user_id_difftime_y.max()
-newData.user_id_difftime_y.min()
-newData.user_id_difftime_y.mean()
-
-
-newData.user_id_timeperiod.max()
-newData.user_id_timeperiod.mean()
-newData.user_id_timeperiod.min()
-
-oldData.user_id_timeperiod.max()
-oldData.user_id_timeperiod.mean()
-oldData.user_id_timeperiod.min()
-
-(oldData.user_id_counts * oldData.shape[0]).max()
-(oldData.user_id_counts * oldData.shape[0]).min()
-(oldData.user_id_counts * oldData.shape[0]).mean()
-
-
-(oldData.user_id_rank * (oldData.user_id_counts * oldData.shape[0])).max()
-(oldData.user_id_rank * (oldData.user_id_counts * oldData.shape[0])).min()
-(oldData.user_id_rank * (oldData.user_id_counts * oldData.shape[0])).mean()
+ 
+ 
+temp['context_timestamp'].first()
+temp.count().shape
+temp['user_id'].last()

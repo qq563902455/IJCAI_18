@@ -13,8 +13,14 @@ import gc
 
 selectedOutId = pd.read_table(
     './rawdata/round2_ijcai_18_test_a_20180425.txt', sep=' ').instance_id
-
+        
+        
+        
 valid = pd.read_csv('./ProcessedData/valid.csv')
+
+
+#valid = valid.sample(frac=1.0, random_state=2014)
+
 train = pd.read_csv('./ProcessedData/train.csv')
 test = pd.read_csv('./ProcessedData/test.csv')
 
@@ -26,6 +32,10 @@ trainY = train.is_trade
 validX = valid.drop(['is_trade'], axis=1)
 validY = valid.is_trade
 
+
+
+testId = test.instance_id
+test = test.drop(['instance_id'], axis=1)
 
 #
 #droplist = []
@@ -135,16 +145,23 @@ stacker_model=stacker(modellist, higherModel=linearBlending([0,0],
                                                   shuffle=True))
 stacker_model.fit(validX, validY, metric)
 out = stacker_model.predict_proba(test)
-out = pd.DataFrame({'instance_id': selectedOutId,
+out = pd.DataFrame({'instance_id': testId,
                     'predicted_score': out})
 # =============================================================================
 # 生成最后的结果
 # =============================================================================
-out = pd.DataFrame({'instance_id': selectedOutId,
+out = pd.DataFrame({'instance_id': testId,
                     'predicted_score': out[:,1]})
 
     
 #out.loc[out.predicted_score>1, 'predicted_score']=1
 
-out.to_csv('submit.txt', sep=' ', index=False)
+out = out.set_index('instance_id')   
+
+
+out.head()
+out.loc[selectedOutId].head()
+#testId.head()
+
+out.loc[selectedOutId].to_csv('submit.txt', sep=' ')
 print('end')

@@ -131,95 +131,29 @@ def mergeInfo(rawData, datasetlist):
 
 
 
-
-
-index = 0
-lastId = -100
-def getRankInfo(row, col):
-    global index
-    global lastId
-    if row[col] != lastId:
-        index=0
-    index += 1
-    lastId = row[col]
-    return index
-
-lastId = -100
-lastTime = -1
-def getDiffTimeInfo(row, col):
-    global lastTime
-    global lastId
-    if row[col] != lastId:
-        lastTime = row['context_timestamp']
-        lastId = row[col]
-        return 0
-    re = row['context_timestamp'] - lastTime
-    lastId = row[col]
-    lastTime = row['context_timestamp']
-    return re.seconds
-
 def mergeIdRankInfo(dataset, collist):
-    global index
-    global lastId
-    global lastTime
     for col in collist:
         if type(col) == str:
             print('processing:\t', col)
-            dataset = dataset.sort_values(by=[col, 'context_timestamp'])
-            index = 0
-            lastId = -100
-            lastTime = -1
-            dataset[col+'_rank'] = dataset.apply(
-                    lambda x: getRankInfo(x, col), axis=1)
+            dataset = dataset.sort_values(by=['context_timestamp'])
+            tempG = dataset.groupby(by=[col], as_index=False)
+            dataset[col+'_rank'] = tempG.cumcount()
+            dataset[col+'_rank'] /= (dataset[col+'_counts'] * dataset.shape[0])
             
-            dataset[col+'_rank'] = \
-                dataset[col+'_rank']/(dataset[col+'_counts']*dataset.shape[0])
+            tempTimeperiod = \
+                pd.DataFrame(
+                    (tempG['context_timestamp'].last()['context_timestamp']-\
+                     tempG['context_timestamp'].first()['context_timestamp']
+                    ).dt.seconds)
+                
+            tempTimeperiod[col] = tempG['context_timestamp'].last()[col]
+            tempTimeperiod = tempTimeperiod.rename(
+                    {'context_timestamp': col+'_timeperiod'}, axis=1)
             
-            
-            index = 0
-            lastId = -100
-            lastTime = -1
-            dataset[col+'_difftime'] = dataset.apply(
-                    lambda x: getDiffTimeInfo(x, col), axis=1)
-            
-            tempGroupby = dataset[[col, col+'_difftime']].groupby(
-                    by=col, as_index=False).sum()
-            
-            dataset = pd.merge(dataset, tempGroupby, how='left', on=col)
-            
-            dataset = dataset.drop([col+'_difftime_x'], axis=1)
-            dataset = dataset.rename(columns={
-                    col+'_difftime_y': col+'_timeperiod'})
-            
-            gc.collect()
+            dataset = pd.merge(dataset, tempTimeperiod, on=[col])
             
     return dataset
 
-
-#lastTime = -1
-#def getLastTimeDiff(x):
-#    global lastTime
-#    if type(lastTime) == int:
-#        lastTime = x
-#        return -1
-#    temp = lastTime
-#    lastTime = x
-#    return (x-temp).seconds
-#
-#
-#def mergeIdTimeDiffInfo(dataset, collist):
-#    global lastTime
-#    dataset = dataset = dataset.sort_values(by='context_timestamp')
-#    for col in collist:
-#        print('processing:\t', col)
-#        idlist = list(dataset[col].unique())
-#        dataset[col+'_timeDiff'] = 0
-#        for i in tqdm(range(len(idlist))):
-#            lastTime = -1
-#            dataset.loc[dataset[col]==idlist[i], col+'_timeDiff'] =\
-#                    dataset[
-#                        dataset[col]==idlist[i]].context_timestamp.apply(getLastTimeDiff)
-#    return dataset
 
 collist = ['item_brand_id', 'item_id', 'item_city_id', 'user_id',
            'user_occupation_id', 'user_gender_id', 'shop_id',
@@ -227,9 +161,11 @@ collist = ['item_brand_id', 'item_id', 'item_city_id', 'user_id',
            ['user_id', 'item_id'], ['user_id', 'shop_id'],
            ['user_id', 'item_cat_id'], ['user_gender_id', 'item_cat_id'],
            ['user_occupation_id', 'item_cat_id'], ['shop_id', 'item_cat_id'],
+           ['user_id', 'hour'], ['item_id', 'hour'], ['shop_id', 'hour'],
+           ['user_id', 'item_id', 'hour']
            ]
 
-colRanklist = ['user_id']
+colRanklist = ['user_id', 'item_id', 'item_brand_id', 'shop_id']
 
 
 for day in range(6,8):
@@ -241,13 +177,13 @@ for day in range(6,8):
         elif type(col) == list:
             info_list.append(getColInfo(col, allData[allData.day == day]))
 
-#    for col in collist:
-#        if type(col) == str:
-#            info_list.append(getColInfo([col], allData[allData.day == day-1],
-#                                        rate_col=True, nameAdd='-1_'))
-#        elif type(col) == list:
-#            info_list.append(getColInfo(col, allData[allData.day == day-1],
-#                                        rate_col=True, nameAdd='-1_'))
+    for col in collist:
+        if type(col) == str:
+            info_list.append(getColInfo([col], allData[allData.day == day-1],
+                                        rate_col=True, nameAdd='-1_'))
+        elif type(col) == list:
+            info_list.append(getColInfo(col, allData[allData.day == day-1],
+                                        rate_col=True, nameAdd='-1_'))
 #
 #    for col in collist:
 #        if type(col) == str:
@@ -349,7 +285,7 @@ catDropList = ['item_id', 'item_brand_id', 'item_city_id',
 
 allData = allData.drop(
     ['context_timestamp',
-     'item_category_list', 'instance_id',
+     'item_category_list',
      'item_property_list', 'predict_category_property'], axis=1)
 
 
@@ -360,7 +296,7 @@ for col in allData.columns:
         allData[col] = pd.Categorical(allData[col])
 
 for col in allData:
-    if col not in catFeatureslist:
+    if col not in catFeatureslist + ['instance_id']:
         if col not in ['day', 'is_trade']:
             minval = allData[col].min()
             maxval = allData[col].max()
@@ -375,9 +311,9 @@ for col in allData:
 
 
 
-train = allData[allData.day==6].drop(['day'], axis=1)
+train = allData[allData.day==6].drop(['day', 'instance_id'], axis=1)
 valid = allData[np.array(allData.isTestTime == 0)&
-                np.array(allData.day==7)].drop(['day'], axis=1)
+                np.array(allData.day==7)].drop(['day', 'instance_id'], axis=1)
 test = allData[np.array(allData.isTestTime == 1)&
                np.array(allData.day==7)].drop(['is_trade', 'day'], axis=1)
 
