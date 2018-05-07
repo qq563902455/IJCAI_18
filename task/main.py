@@ -5,6 +5,7 @@ from lxyTools.singleModelUtils import singleModel
 from lxyTools.stacker import stacker
 from lxyTools.stacker import linearBlending
 from lxyTools.featureSelect import rfeBySingleModel
+from lxyTools.boostingTreeWithLM import BoosterLmClassifier
 from sklearn.metrics import log_loss
 import lightgbm as lgb
 import xgboost as xgb
@@ -14,12 +15,6 @@ import gc
 selectedOutId = pd.read_table(
     './rawdata/round2_ijcai_18_test_a_20180425.txt', sep=' ').instance_id
         
-        
-        
-valid = pd.read_csv('./ProcessedData/valid.csv')
-
-
-#valid = valid.sample(frac=1.0, random_state=2014)
 
 train = pd.read_csv('./ProcessedData/train.csv')
 test = pd.read_csv('./ProcessedData/test.csv')
@@ -27,11 +22,6 @@ test = pd.read_csv('./ProcessedData/test.csv')
 
 trainX = train.drop(['is_trade'], axis=1)
 trainY = train.is_trade
-
-
-validX = valid.drop(['is_trade'], axis=1)
-validY = valid.is_trade
-
 
 
 testId = test.instance_id
@@ -51,20 +41,20 @@ def metric(y_true, y_re):
     return log_loss(y_true, y_re)
 
 
-model = lgb.LGBMClassifier(
-    random_state=666,
-    max_depth=6,
-    subsample=0.8,
-    n_estimators=2000,
-    colsample_bytree=0.6,
-    reg_alpha=0.3,
-    learning_rate=0.01,
-    reg_lambda=0.3,
-    # is_unbalance=True,
-    # scale_pos_weight=1,
-    min_child_samples=150,
-    subsample_freq=1,
-)
+#model = lgb.LGBMClassifier(
+#    random_state=666,
+#    max_depth=6,
+#    subsample=0.8,
+#    n_estimators=100,
+#    colsample_bytree=0.6,
+#    reg_alpha=0.3,
+#    learning_rate=0.1,
+#    reg_lambda=0.3,
+#    # is_unbalance=True,
+#    # scale_pos_weight=1,
+#    min_child_samples=150,
+#    subsample_freq=1,
+#)
 #model = xgb.XGBClassifier(
 #            max_depth=3,
 #            n_estimators=2500,
@@ -81,28 +71,51 @@ model = lgb.LGBMClassifier(
 #          eval_metric='logloss', early_stopping_rounds=300)
 #print(gc.collect())
 #model = LogisticRegression(penalty='l1')
+#smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
+#                                                  random_state=945,
+#                                                  shuffle=True))
+#smodel.fit(trainX, trainY, metric)
+#print(gc.collect())
+
+
+
+
+nm = lgb.LGBMClassifier(
+    random_state=666,
+    max_depth=6,
+    subsample=0.8,
+    n_estimators=100,
+    colsample_bytree=0.6,
+    reg_alpha=0.3,
+    learning_rate=0.1,
+    reg_lambda=0.3,
+    # is_unbalance=True,
+    # scale_pos_weight=1,
+    min_child_samples=150,
+    subsample_freq=1,
+)
+lm = LogisticRegression(C=0.02, penalty='l1')
+model = BoosterLmClassifier(nm, lm)
+
 smodel = singleModel(model, kfold=StratifiedKFold(n_splits=5,
                                                   random_state=945,
                                                   shuffle=True))
-smodel.fit(validX, validY, metric)
-print(gc.collect())
+smodel.fit(trainX, trainY, metric)
 
-featureImportancelist = []
-for m in smodel.modelList:
-    featureImportancelist.append(m.feature_importances_)
-importanceSeries = pd.Series(featureImportancelist[0])
-for i in range(1, len(featureImportancelist)):
-    importanceSeries += pd.Series(featureImportancelist[i])
-importanceSeries.index = validX.columns
+
+
+#featureImportancelist = []
+#for m in smodel.modelList:
+#    featureImportancelist.append(m.feature_importances_)
+#importanceSeries = pd.Series(featureImportancelist[0])
+#for i in range(1, len(featureImportancelist)):
+#    importanceSeries += pd.Series(featureImportancelist[i])
+#importanceSeries.index = validX.columns
 #print(log_loss(validY, smodel.predict_proba(validX)[:, 1]))
 
 #test = test.drop(['day'], axis=1)
 out = smodel.predict_proba(test)
 print(gc.collect()) 
-
-
-validX = validX.drop(['user_id_timeperiod'], axis=1)
-
 
 modellist=[
             lgb.LGBMClassifier(

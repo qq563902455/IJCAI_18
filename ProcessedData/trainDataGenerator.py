@@ -43,6 +43,7 @@ allData.insert(loc=0, column='day', value=allData.context_timestamp.dt.day)
 allData.insert(loc=0, column='hour', value=allData.context_timestamp.dt.hour)
 
 
+
 def getStringVal(s, num):
     for i in range(num-1):
         if ';' in s:
@@ -66,6 +67,12 @@ allData.insert(loc=0, column='item_cat_len',
 allData.insert(loc=0, column='isTestTime', value=0)
 allData.loc[allData.hour >= 12, 'isTestTime'] = 1
 
+data05 = allData[allData.day.isin(range(5))]
+data6 = allData[allData.day == 6]
+data7 = allData[allData.day == 7]
+
+del allData
+gc.collect()
 
 def getColInfo(col, dataset, rate_col=False, nameAdd=''):
     name = ''
@@ -155,55 +162,85 @@ def mergeIdRankInfo(dataset, collist):
     return dataset
 
 
+
+
+
+info_list = []
+# =============================================================================
+# 生成头5天的特征
+# =============================================================================
 collist = ['item_brand_id', 'item_id', 'item_city_id', 'user_id',
            'user_occupation_id', 'user_gender_id', 'shop_id',
-           'context_page_id', 'context_id', 'item_cat_id',
+           'context_page_id', 'item_cat_id',
            ['user_id', 'item_id'], ['user_id', 'shop_id'],
+           ['user_id', 'context_page_id'],
            ['user_id', 'item_cat_id'], ['user_gender_id', 'item_cat_id'],
            ['user_occupation_id', 'item_cat_id'], ['shop_id', 'item_cat_id'],
            ['user_id', 'hour'], ['item_id', 'hour'], ['shop_id', 'hour'],
-           ['user_id', 'item_id', 'hour']
            ]
+
+for col in collist:
+    if type(col) == str:
+        info_list.append(getColInfo([col], data05,
+                                    rate_col=True, nameAdd='05_'))
+    elif type(col) == list:
+        info_list.append(getColInfo(col, data05,
+                                    rate_col=True, nameAdd='05_'))
+
+
+del data05
+gc.collect()
+# =============================================================================
+# 生成第6天的特征
+# =============================================================================
+collist = ['item_brand_id', 'item_id', 'item_city_id', 'user_id',
+           'user_occupation_id', 'user_gender_id', 'shop_id',
+           'context_page_id', 'item_cat_id',
+           ['user_id', 'item_id'], ['user_id', 'shop_id'],
+           ['user_id', 'context_page_id'],
+           ['user_id', 'item_cat_id'], ['user_gender_id', 'item_cat_id'],
+           ['user_occupation_id', 'item_cat_id'], ['shop_id', 'item_cat_id'],
+           ['user_id', 'hour'], ['item_id', 'hour'], ['shop_id', 'hour'],
+           ]
+
+for col in collist:
+    if type(col) == str:
+        info_list.append(getColInfo([col], data6,
+                                    rate_col=True, nameAdd='6_'))
+    elif type(col) == list:
+        info_list.append(getColInfo(col, data6,
+                                    rate_col=True, nameAdd='6_'))
+        
+del data6
+gc.collect()
+# =============================================================================
+# 生成第7天的特征
+# =============================================================================
+collist = ['item_brand_id', 'item_id', 'item_city_id', 'user_id',
+           'user_occupation_id', 'user_gender_id', 'shop_id',
+           'context_page_id', 'item_cat_id',
+           ['user_id', 'item_id'], ['user_id', 'shop_id'],
+           ['user_id', 'context_page_id'],
+           ['user_id', 'item_cat_id'], ['user_gender_id', 'item_cat_id'],
+           ['user_occupation_id', 'item_cat_id'], ['shop_id', 'item_cat_id'],
+           ['user_id', 'hour'], ['item_id', 'hour'], ['shop_id', 'hour'],
+           ]
+
+for col in collist:
+    if type(col) == str:
+        info_list.append(getColInfo([col], data7))
+    elif type(col) == list:
+        info_list.append(getColInfo(col, data7))
 
 colRanklist = ['user_id', 'item_id', 'item_brand_id', 'shop_id']
 
 
-for day in range(6,8):
-    print(day)
-    info_list = []
-    for col in collist:
-        if type(col) == str:
-            info_list.append(getColInfo([col], allData[allData.day == day]))
-        elif type(col) == list:
-            info_list.append(getColInfo(col, allData[allData.day == day]))
+data7 = mergeInfo(data7, info_list)
+del info_list
+gc.collect()
 
-    for col in collist:
-        if type(col) == str:
-            info_list.append(getColInfo([col], allData[allData.day == day-1],
-                                        rate_col=True, nameAdd='-1_'))
-        elif type(col) == list:
-            info_list.append(getColInfo(col, allData[allData.day == day-1],
-                                        rate_col=True, nameAdd='-1_'))
-#
-#    for col in collist:
-#        if type(col) == str:
-#            info_list.append(getColInfo([col], allData[allData.day == day-2],
-#                                        rate_col=True, nameAdd='-2_'))
-#        elif type(col) == list:
-#            info_list.append(getColInfo(col, allData[allData.day == day-2],
-#                                        rate_col=True, nameAdd='-2_'))
-
-
-
-    dataset = allData[allData.day == day]
-    dataset = mergeInfo(dataset, info_list)
-    
-    del info_list
-    gc.collect()
-    
-    dataset = mergeIdRankInfo(dataset, colRanklist)
-    dataset.to_csv(
-            './ProcessedData/day'+str(day)+'.csv', index=False)
+data7 = mergeIdRankInfo(data7, colRanklist)
+data7.to_csv('./ProcessedData/day.csv', index=False)
 gc.collect()
 
 #for day in [(6,0), (6,1), (7,0), (7,1)]:
@@ -258,67 +295,52 @@ gc.collect()
 # =============================================================================
 # 这个模块的作用是把上面的那些day.csv转换成模型训练用的csv
 # =============================================================================
-datalist = []
-#for day in [(6,0), (6,1), (7,0), (7,1)]:
-#    datalist.append(pd.read_csv('./ProcessedData/day'+str(day[0])+'_'+str(day[1])+'.csv'))
 
-for day in [6, 7]:
-    datalist.append(pd.read_csv('./ProcessedData/day'+str(day)+'.csv'))
-
-selectedOutId = pd.read_table(
-    './rawdata/round2_ijcai_18_test_a_20180425.txt', sep=' ').instance_id
-
-#outId = datalist[0].instance_id
-allData = pd.concat(datalist)
-
+data7 = pd.read_csv('./ProcessedData/day.csv')
 
 catFeatureslist = ['item_id', 'item_brand_id', 'item_city_id',
                    'user_id', 'user_gender_id', 'user_occupation_id',
                    'context_id', 'shop_id',
                   ]
 
-catDropList = ['item_id', 'item_brand_id', 'item_city_id',
-               'user_id', 'user_gender_id', 'user_occupation_id',
+catDropList = ['item_id', 'item_brand_id',
+               'user_id',
                'context_id', 'shop_id',
                'hour'
                ]
 
-allData = allData.drop(
+data7 = data7.drop(
     ['context_timestamp',
      'item_category_list',
      'item_property_list', 'predict_category_property'], axis=1)
 
 
-allData = allData.drop(catDropList, axis=1)
+data7 = data7.drop(catDropList, axis=1)
 
-for col in allData.columns:
+for col in data7.columns:
     if col in catFeatureslist:
-        allData[col] = pd.Categorical(allData[col])
+        data7[col] = pd.Categorical(data7[col])
 
-for col in allData:
+for col in data7:
     if col not in catFeatureslist + ['instance_id']:
-        if col not in ['day', 'is_trade']:
-            minval = allData[col].min()
-            maxval = allData[col].max()
+        if col not in ['day', 'is_trade', 'isTestTime']:
+            minval = data7[col].min()
+            maxval = data7[col].max()
             if maxval != minval:
-                allData[col] = allData[col].apply(
+                data7[col] = data7[col].apply(
                     lambda x: (x-minval)/(maxval-minval))
             else:
-                allData = allData.drop([col], axis=1)
+                data7 = data7.drop([col], axis=1)
 
 
 
 
 
-
-train = allData[allData.day==6].drop(['day', 'instance_id'], axis=1)
-valid = allData[np.array(allData.isTestTime == 0)&
-                np.array(allData.day==7)].drop(['day', 'instance_id'], axis=1)
-test = allData[np.array(allData.isTestTime == 1)&
-               np.array(allData.day==7)].drop(['is_trade', 'day'], axis=1)
+train = data7[data7.isTestTime==0].drop(['day', 'instance_id', 'isTestTime'], axis=1)
+test = data7[data7.isTestTime == 1].drop(['is_trade', 'day',  'isTestTime'], axis=1)
 
 #pretrain.to_csv('./ProcessedData/pretrain.csv', index=False)
-valid.to_csv('./ProcessedData/valid.csv', index=False)
+#valid.to_csv('./ProcessedData/valid.csv', index=False)
 train.to_csv('./ProcessedData/train.csv', index=False)
 test.to_csv('./ProcessedData/test.csv', index=False)
 
