@@ -15,7 +15,7 @@ class singleModel:
 
     def fit(self, X, Y, metric, addX=-1, addY=-1):
         self.modelList = []
-        scorelist = []
+        self.scorelist = []
         for kTrainIndex, kTestIndex in self.kfold.split(X, Y):
             kTrain_x = X.iloc[kTrainIndex]
             kTrain_y = Y.iloc[kTrainIndex]
@@ -39,10 +39,10 @@ class singleModel:
             print('score: ', score)
 
             self.modelList.append(model)
-            scorelist.append(score)
+            self.scorelist.append(score)
 
-        print('mean score: ', np.array(scorelist).mean())
-        print('std score: ', np.array(scorelist).std())
+        print('mean score: ', np.array(self.scorelist).mean())
+        print('std score: ', np.array(self.scorelist).std())
         print('-'*20)
 
     def predict_proba(self, X):

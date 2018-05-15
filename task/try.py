@@ -10,12 +10,12 @@ import lightgbm as lgb
 import xgboost as xgb
 from sklearn.svm import SVC
 import gc
-import np.numpy
+import numpy as np
 from sklearn.preprocessing import OneHotEncoder
 
 selectedOutId = pd.read_table(
     './rawdata/round2_ijcai_18_test_a_20180425.txt', sep=' ').instance_id
-        
+
 
 train = pd.read_csv('./ProcessedData/train.csv')
 test = pd.read_csv('./ProcessedData/test.csv')
@@ -66,7 +66,7 @@ out = temp.predict(trainX ,pred_leaf=True)
 #    dsum += len(np.unique(out[:,i]))
 
 
-one = OneHotEncoder(dtype=np.uint8)
+one = OneHotEncoder(sparse=False, dtype=np.uint8)
 one.fit(out)
 onhot_out = one.transform(out).toarray()
 
@@ -76,3 +76,40 @@ lmodel.fit(onhot_out, trainY)
 
 
 gc.collect()
+
+
+
+
+def getColStdInfo(col, dataset, nameAdd=''):
+    dayPeriod = dataset.day.unique()
+    info_list = []
+#     print(dayPeriod)
+    for day in dayPeriod:
+        info_list.append(getColInfo(col, dataset[dataset.day==day], rate_col=True, nameAdd=str(day)+'_'))
+
+    allinfo = pd.DataFrame(info_list[0])
+    for item in info_list[1:]:
+        allinfo=pd.merge(allinfo, item, how='outer', on=col)
+
+    allinfo = allinfo.fillna(0)
+
+    countsCollist = []
+    rateCollist = []
+    for feature in allinfo.columns:
+        if 'counts' in feature:
+            countsCollist.append(feature)
+        if 'rate' in feature:
+            rateCollist.append(feature)
+
+    name = ''
+    for i in col:
+        name += i+'_'
+
+    allinfo[name+'counts_std'+nameAdd] = allinfo[countsCollist].std(axis=1)
+    allinfo[name+'counts_rate'+nameAdd] = allinfo[rateCollist].std(axis=1)
+    allinfo = allinfo[col+[name+'counts_std'+nameAdd, name+'counts_rate'+nameAdd]]
+
+#     print(allinfo.head(3))
+
+    gc.collect()
+    return allinfo

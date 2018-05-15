@@ -116,6 +116,33 @@ class stacker:
         print('stacker score',np.array(self.re_score).mean());
         print('stacker std  ',np.array(self.re_score).std());
 
+
+    def highModelRefit(self, Y, metric):
+        self.modelHigherList=[];
+        for kTrainIndex,kTestIndex in self.kFoldHigher.split(self.higherTrain,Y):
+            higherModelcp=cp.deepcopy(self.higherModel);
+            kTrain_x=self.higherTrain.iloc[kTrainIndex];
+            kTrain_y=Y.iloc[kTrainIndex];
+
+            kTest_x=self.higherTrain.iloc[kTestIndex];
+            kTest_y=Y.iloc[kTestIndex];
+            higherModelcp.fit(kTrain_x,kTrain_y);
+            gc.collect()
+
+            if self.obj=='binary':
+                testPre=higherModelcp.predict_proba(kTest_x)[:,1];
+            elif self.obj=='reg':
+                testPre=higherModelcp.predict(kTest_x);
+
+            score=metric(kTest_y, testPre)
+            print('score: ',score)
+            self.re_score.append(score);
+            self.modelHigherList.append(higherModelcp);
+
+        print('stacker score',np.array(self.re_score).mean());
+        print('stacker std  ',np.array(self.re_score).std());
+        pass
+
     def upsample(self,X,Y):
 #        print('X shape: ',X.shape);
 #        print('Y shape: ',Y.shape);
@@ -194,7 +221,7 @@ class stacker:
             else:
                 ans+=higherModel.predict_proba(higherX)[:,1]/len(self.modelHigherList);
         return ans;
-    
+
 class linearBlending:
     def __init__(self,paramList,sum_counts,loss,obj):
         self.paramList=paramList;
